@@ -22,7 +22,8 @@
     body { background: var(--bg); color: var(--text); padding: 24px; }
     header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 16px; margin-bottom: 24px; }
     .title-group h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
-    .badge-live { background: rgba(34, 197, 94, 0.2); color: var(--green); border: 1px solid var(--green); font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; text-transform: uppercase; }
+    .badge-live { background: rgba(34, 197, 94, 0.2); color: var(--green); border: 1px solid var(--green); font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; text-transform: uppercase; animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
     .controls { display: flex; gap: 10px; }
     button { background: #1e293b; color: #fff; border: 1px solid #334155; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
     button:hover { background: #334155; }
@@ -45,10 +46,10 @@
     th { color: var(--muted); border-bottom: 1px solid var(--card-border); padding: 10px 8px; font-weight: 600; }
     td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
     .tag { font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; }
-    .tag-ALLOW { background: rgba(34, 197, 94, 0.15); color: var(--green); }
-    .tag-REVIEW { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
-    .tag-CHALLENGE_2FA { background: rgba(168, 85, 247, 0.15); color: var(--purple); }
-    .tag-BLOCK { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+    .tag-ALLOW { background: rgba(34, 197, 94, 0.15); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.3); }
+    .tag-REVIEW { background: rgba(234, 179, 8, 0.15); color: var(--yellow); border: 1px solid rgba(234, 179, 8, 0.3); }
+    .tag-CHALLENGE_2FA { background: rgba(168, 85, 247, 0.15); color: var(--purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+    .tag-BLOCK { background: rgba(239, 68, 68, 0.2); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.4); }
   </style>
 </head>
 <body>
@@ -56,12 +57,12 @@
   <header>
     <div class="title-group">
       <h1>SENTINEL RISK ENGINE <span class="badge-live">Live Stream</span></h1>
-      <p style="color: var(--muted); font-size: 13px; margin-top: 4px;">Real-Time Financial Anomaly Detection & Risk Surveillance</p>
+      <p style="color: var(--muted); font-size: 13px; margin-top: 4px;">Real-Time Financial Anomaly Detection & Risk Surveillance &middot; Sub-15ms Latency SLA</p>
     </div>
     <div class="controls">
       <button onclick="toggleStream()" id="streamBtn" class="primary">Pause Stream</button>
       <button onclick="triggerAttack('impossible_travel')" class="danger">Inject Geo Attack</button>
-      <button onclick="triggerAttack('velocity_burst')" class="danger">Inject Velocity Attack</button>
+      <button onclick="triggerAttack('velocity_burst')" class="danger">Inject Velocity Burst</button>
     </div>
   </header>
 
@@ -72,7 +73,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">Inference P99 Latency</div>
-      <div class="stat-value" style="color: var(--accent);" id="statLatency">3.8 ms</div>
+      <div class="stat-value" style="color: var(--accent);" id="statLatency">4.2 ms</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Anomaly Detection Rate</div>
@@ -100,7 +101,7 @@
             <tr>
               <th>TX ID</th>
               <th>Score</th>
-              <th>Action</th>
+              <th>Decision</th>
               <th>Latency</th>
             </tr>
           </thead>
@@ -113,8 +114,9 @@
   <script>
     let isStreaming = true;
     let totalCount = 0;
+    let anomalyCount = 0;
     let blockedVolume = 0;
-    const maxDataPoints = 30;
+    const maxDataPoints = 25;
 
     const ctx = document.getElementById('riskChart').getContext('2d');
     const riskChart = new Chart(ctx, {
@@ -128,7 +130,7 @@
           backgroundColor: 'rgba(56, 189, 248, 0.1)',
           fill: true,
           tension: 0.35,
-          pointRadius: 4,
+          pointRadius: 5,
           pointBackgroundColor: function(context) {
             const val = context.raw;
             if (val >= 0.85) return '#ef4444';
@@ -142,8 +144,16 @@
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          y: { min: 0, max: 1.0, grid: { color: 'rgba(255,255,255,0.05)' } },
-          x: { grid: { display: false } }
+          y: { 
+            min: 0, 
+            max: 1.0, 
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: { color: '#94a3b8' }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { color: '#94a3b8' }
+          }
         },
         plugins: { legend: { display: false } }
       }
@@ -161,12 +171,18 @@
 
     function handleNewAssessment(data) {
       totalCount++;
+      if (data.decision !== 'ALLOW') {
+        anomalyCount++;
+      }
+      
+      const rate = ((anomalyCount / totalCount) * 100).toFixed(1);
       document.getElementById('statTotal').innerText = totalCount.toLocaleString();
       document.getElementById('statLatency').innerText = data.latency_ms + ' ms';
+      document.getElementById('statAnomalyRate').innerText = rate + '%';
       
       if (data.decision === 'BLOCK' || data.decision === 'CHALLENGE_2FA') {
-        blockedVolume += 1500.0;
-        document.getElementById('statBlockedVol').innerText = '£' + blockedVolume.toLocaleString();
+        blockedVolume += (data.decision === 'BLOCK' ? 3850.0 : 450.0);
+        document.getElementById('statBlockedVol').innerText = '£' + blockedVolume.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
       }
 
       // Chart update
@@ -183,13 +199,13 @@
       const tbody = document.getElementById('txTableBody');
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td style="font-weight:600;">${data.transaction_id}</td>
-        <td><strong style="color:${data.overall_risk_score >= 0.7 ? '#ef4444' : '#22c55e'}">${(data.overall_risk_score * 100).toFixed(1)}%</strong></td>
+        <td style="font-weight:600; font-family:monospace;">${data.transaction_id}</td>
+        <td><strong style="color:${data.overall_risk_score >= 0.7 ? '#ef4444' : (data.overall_risk_score >= 0.5 ? '#eab308' : '#22c55e')}">${(data.overall_risk_score * 100).toFixed(1)}%</strong></td>
         <td><span class="tag tag-${data.decision}">${data.decision}</span></td>
-        <td style="color:var(--muted);">${data.latency_ms} ms</td>
+        <td style="color:var(--muted); font-family:monospace;">${data.latency_ms} ms</td>
       `;
       tbody.insertBefore(row, tbody.firstChild);
-      if (tbody.children.length > 20) tbody.removeChild(tbody.lastChild);
+      if (tbody.children.length > 25) tbody.removeChild(tbody.lastChild);
     }
 
     function toggleStream() {
@@ -201,9 +217,16 @@
       fetchNextScore(type);
     }
 
-    setInterval(() => {
-      if (isStreaming) fetchNextScore("random");
-    }, 1200);
+    // Initial batch load & continuous interval
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchNextScore('random');
+      setTimeout(() => fetchNextScore('random'), 300);
+      setTimeout(() => fetchNextScore('random'), 600);
+      
+      setInterval(() => {
+        if (isStreaming) fetchNextScore('random');
+      }, 1000);
+    });
   </script>
 </body>
 </html>
