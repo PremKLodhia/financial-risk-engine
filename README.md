@@ -35,7 +35,7 @@ graph TD
 
 1. **Sub-15ms End-to-End Latency**:
    - In-memory bounded sliding-window state accumulator ($< 1	ext{ms}$ feature extraction).
-   - Parallel inference pipeline executing heuristic filters, tree-based isolation, and deep neural reconstruction.
+   - Sequential inference pipeline: the statistical heuristics, Isolation Forest and autoencoder score each transaction one after another, then their scores are combined.
 
 2. **Tri-Tier Model Ensemble**:
    - **Statistical Heuristic Engine**: Real-time Z-score deviation on amount distributions, velocity burst ratios, off-hours execution, and Haversine impossibility speed calculations ($> 900	ext{ km/h}$).
