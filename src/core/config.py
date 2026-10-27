@@ -32,3 +32,15 @@ class Settings:
     ARTIFACTS_DIR: Path = BASE_DIR / "artifacts"
 
 settings = Settings()
+
+
+def cors_allowed_origins() -> list[str]:
+    """Explicit CORS origins from RISK_ENGINE_CORS_ORIGINS (comma-separated).
+
+    Credentials are allowed, so a wildcard origin is never accepted.
+    """
+    raw = os.getenv("RISK_ENGINE_CORS_ORIGINS", "http://localhost:8000")
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    if "*" in origins:
+        raise ValueError("RISK_ENGINE_CORS_ORIGINS must list explicit origins; '*' is not allowed with credentials")
+    return origins

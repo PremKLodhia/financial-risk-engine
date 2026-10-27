@@ -6,7 +6,7 @@ import time
 from collections import deque
 import numpy as np
 
-from src.core.config import settings
+from src.core.config import cors_allowed_origins, settings
 from src.core.types import Transaction, RiskAssessment
 from src.models.ensemble import global_risk_scorer
 from src.ingestion.stream_simulator import TransactionStreamSimulator
@@ -17,10 +17,10 @@ app = FastAPI(
     description="Production-grade real-time financial risk and anomaly detection microservice."
 )
 
-# CORS Policy - Restricted methods and headers
+# CORS Policy - explicit origins (RISK_ENGINE_CORS_ORIGINS), restricted methods and headers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_allowed_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],

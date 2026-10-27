@@ -103,6 +103,8 @@ uvicorn src.api.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 Navigate to **`http://127.0.0.1:8000`** in your browser to view the live dashboard!
 
+Cross-origin requests are accepted only from the origins in `RISK_ENGINE_CORS_ORIGINS` (comma-separated; default `http://localhost:8000`). A wildcard `*` is rejected because the API allows credentials.
+
 ---
 
 ## 🐳 Docker Deployment
