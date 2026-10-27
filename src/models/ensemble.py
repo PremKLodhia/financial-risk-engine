@@ -21,7 +21,7 @@ class EnsembleRiskScorer:
         # 1. Feature Extraction (< 1ms)
         extracted, vector = global_feature_store.extract_and_update(tx)
         
-        # 2. Parallel Inference across Models (< 5ms)
+        # 2. Sequential inference: each model scores in turn
         stat_score, stat_factors = self.statistical_model.score(extracted, vector)
         if_score, if_factors = self.isolation_forest.score(extracted, vector)
         ae_score, ae_factors = self.autoencoder.score(extracted, vector)

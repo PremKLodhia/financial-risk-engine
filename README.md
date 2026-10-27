@@ -4,7 +4,7 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11-38bdf8?style=flat-square&logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2-ee4c2c?style=flat-square&logo=pytorch)](https://pytorch.org)
-[![Sub-15ms Latency](https://img.shields.io/badge/Latency-P99%20%3C%2015ms-a855f7?style=flat-square)](https://premlodhia.com)
+[![P99 latency target 15ms](https://img.shields.io/badge/P99%20target-%3C%2015ms-a855f7?style=flat-square)](#-performance-benchmarks)
 
 An ultra-low-latency, multi-model real-time risk scoring and financial surveillance engine designed for capital markets, payment processors, and investment banks. 
 
@@ -25,7 +25,7 @@ graph TD
     D1 --> E["Risk Aggregator & Decision Boundary"]
     D2 --> E
     D3 --> E
-    E --> F["Risk Report & Alert Engine (Scoring < 15ms, Telemetry Logging)"]
+    E --> F["Risk Report & Alert Engine (Scoring, Telemetry Logging)"]
     F --> G["FastAPI Endpoints & Real-Time Monitoring Dashboard"]
 ```
 
@@ -33,9 +33,9 @@ graph TD
 
 ## ⚡ Key Features
 
-1. **Sub-15ms End-to-End Latency**:
-   - In-memory bounded sliding-window state accumulator ($< 1	ext{ms}$ feature extraction).
-   - Parallel inference pipeline executing heuristic filters, tree-based isolation, and deep neural reconstruction.
+1. **Low-Latency Scoring (P99 target < 15 ms; see measured results below)**:
+   - In-memory bounded sliding-window state accumulator per account.
+   - Sequential inference pipeline: the statistical heuristics, Isolation Forest and autoencoder score each transaction one after another, then their scores are combined.
 
 2. **Tri-Tier Model Ensemble**:
    - **Statistical Heuristic Engine**: Real-time Z-score deviation on amount distributions, velocity burst ratios, off-hours execution, and Haversine impossibility speed calculations ($> 900	ext{ km/h}$).
@@ -51,13 +51,34 @@ graph TD
 
 ## 📊 Performance Benchmarks
 
-| Metric | Target SLA | Measured Benchmark |
-| :--- | :--- | :--- |
-| **P50 Latency** | $< 5.0	ext{ ms}$ | **$2.45	ext{ ms}$** |
-| **P95 Latency** | $< 10.0	ext{ ms}$ | **$4.12	ext{ ms}$** |
-| **P99 Latency** | $< 15.0	ext{ ms}$ | **$6.80	ext{ ms}$** |
-| **Single Core Throughput** | $> 150	ext{ tx/sec}$ | **$285	ext{ tx/sec}$** |
-| **Detection Precision (ROC-AUC)** | $> 0.95$ | **$0.984$** |
+Measured with `pytest tests/test_performance_benchmarks.py -s` (500 normal transactions after a 20-transaction warm-up, scored one at a time). Three consecutive runs on the same machine:
+
+| Metric | Test target | Run 1 | Run 2 | Run 3 |
+| :--- | :--- | :--- | :--- | :--- |
+| **P50 Latency** | — | 11.56 ms | 11.48 ms | 3.33 ms |
+| **P95 Latency** | — | 19.38 ms | 17.86 ms | 13.34 ms |
+| **P99 Latency** | < 15 ms | 24.16 ms | 23.08 ms | 15.88 ms |
+| **Throughput** | > 100 tx/sec | 82.0 tx/sec | 81.2 tx/sec | 198.0 tx/sec |
+
+Machine: 13th Gen Intel Core i7-1360P laptop (12 cores / 16 threads, 15.6 GB RAM), Windows 11 Home, Python 3.13.7, PyTorch 2.10.0 (CPU), scikit-learn 1.8.0, NumPy 2.4.2.
+
+None of these runs met the test's P99 target, so `test_latency_sla` fails on this machine. Results swing widely between runs on this laptop CPU, so treat them as indicative and re-run the benchmark on your own hardware.
+
+### Detection Quality (synthetic data)
+
+`scripts/evaluate.py` generates a labelled stream with `TransactionStreamSimulator` (normal payments mixed with impossible-travel and velocity-burst attacks), scores it with the ensemble and computes the metrics with `sklearn.metrics`. **The data is entirely synthetic**; these figures describe the simulator's own attack patterns, not real-world fraud.
+
+Output of `python scripts/evaluate.py` (defaults: 5,000 events, anomaly rate 0.08, seed 42):
+
+```text
+Synthetic evaluation (TransactionStreamSimulator, not real data)
+events=5000 attacks=1352 normal=3648 anomaly_rate=0.08 seed=42
+ROC-AUC:   0.5967
+Precision: 0.2728  (flagged = decision != ALLOW, score >= 0.50)
+Recall:    0.9852
+```
+
+Precision is low largely because of how the simulator timestamps events: every transaction uses the wall-clock time at which it is generated, so the whole stream is compressed into the time the script takes to run. Many ordinary accounts therefore exceed the 5-minute velocity rule (`velocity_5m >= 7`), which forces a high score. Exact results vary slightly between runs because timestamps come from the clock.
 
 ---
 
@@ -87,6 +108,8 @@ python tests/test_performance_benchmarks.py
 uvicorn src.api.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 Navigate to **`http://127.0.0.1:8000`** in your browser to view the live dashboard!
+
+Cross-origin requests are accepted only from the origins in `RISK_ENGINE_CORS_ORIGINS` (comma-separated; default `http://localhost:8000`). A wildcard `*` is rejected because the API allows credentials.
 
 ---
 
