@@ -57,7 +57,22 @@ graph TD
 | **P95 Latency** | $< 10.0	ext{ ms}$ | **$4.12	ext{ ms}$** |
 | **P99 Latency** | $< 15.0	ext{ ms}$ | **$6.80	ext{ ms}$** |
 | **Single Core Throughput** | $> 150	ext{ tx/sec}$ | **$285	ext{ tx/sec}$** |
-| **Detection Precision (ROC-AUC)** | $> 0.95$ | **$0.984$** |
+
+### Detection Quality (synthetic data)
+
+`scripts/evaluate.py` generates a labelled stream with `TransactionStreamSimulator` (normal payments mixed with impossible-travel and velocity-burst attacks), scores it with the ensemble and computes the metrics with `sklearn.metrics`. **The data is entirely synthetic**; these figures describe the simulator's own attack patterns, not real-world fraud.
+
+Output of `python scripts/evaluate.py` (defaults: 5,000 events, anomaly rate 0.08, seed 42):
+
+```text
+Synthetic evaluation (TransactionStreamSimulator, not real data)
+events=5000 attacks=1352 normal=3648 anomaly_rate=0.08 seed=42
+ROC-AUC:   0.5967
+Precision: 0.2728  (flagged = decision != ALLOW, score >= 0.50)
+Recall:    0.9852
+```
+
+Precision is low largely because of how the simulator timestamps events: every transaction uses the wall-clock time at which it is generated, so the whole stream is compressed into the time the script takes to run. Many ordinary accounts therefore exceed the 5-minute velocity rule (`velocity_5m >= 7`), which forces a high score. Exact results vary slightly between runs because timestamps come from the clock.
 
 ---
 
