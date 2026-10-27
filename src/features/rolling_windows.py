@@ -7,17 +7,31 @@ from src.core.types import Transaction, ExtractedFeatures
 from src.core.config import settings
 from src.features.geo_features import haversine_distance_km, calculate_implied_speed_kmh
 
+LOCK_STRIPES = 64
+
+
 class StatefulAccountStore:
-    def __init__(self, max_history: int = 500):
+    """Per-account sliding-window state.
+
+    Uses lock striping: each account maps to one of LOCK_STRIPES locks by hash, so
+    transactions for different accounts rarely contend, while all updates for one
+    account are serialised. An account always maps to the same stripe, which makes
+    the check-then-create of its entries in the shared dicts safe.
+    """
+
+    def __init__(self, max_history: int = 500, stripes: int = LOCK_STRIPES):
         self.max_history = max_history
-        self._lock = threading.Lock()
+        self._locks = [threading.Lock() for _ in range(stripes)]
         # account_id -> deque of (timestamp, amount, lat, lon, device_id, counterparty_id)
         self.history: Dict[str, deque] = {}
         self.known_devices: Dict[str, Set[str]] = {}
         self.known_counterparties: Dict[str, Set[str]] = {}
 
+    def _lock_for(self, account_id: str) -> threading.Lock:
+        return self._locks[hash(account_id) % len(self._locks)]
+
     def extract_and_update(self, tx: Transaction) -> Tuple[ExtractedFeatures, np.ndarray]:
-        with self._lock:
+        with self._lock_for(tx.account_id):
             account = tx.account_id
             now = tx.timestamp
             
@@ -123,9 +137,15 @@ class StatefulAccountStore:
             return extracted, norm_vector
 
     def clear(self):
-        with self._lock:
+        # Take every stripe, always in the same order, so clear() cannot deadlock.
+        for lock in self._locks:
+            lock.acquire()
+        try:
             self.history.clear()
             self.known_devices.clear()
             self.known_counterparties.clear()
+        finally:
+            for lock in reversed(self._locks):
+                lock.release()
 
 global_feature_store = StatefulAccountStore()
